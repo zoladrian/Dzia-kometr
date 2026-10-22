@@ -1,0 +1,32 @@
+name: landscope
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: landscope
+      POSTGRES_USER: landscope
+      POSTGRES_PASSWORD: landscope_local
+    ports: ["127.0.0.1:15432:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U landscope -d landscope"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://landscope:landscope_local@db:5432/landscope
+      LANDSCOPE_DATA_DIR: /app/data
+      LANDSCOPE_COUNTY: ${LANDSCOPE_COUNTY:-0801}
+    ports: ["8000:8000"]
+    volumes: ["./data:/app/data", "./reports:/app/reports", "./landscope/static:/app/landscope/static"]
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+volumes:
+  postgres_data:

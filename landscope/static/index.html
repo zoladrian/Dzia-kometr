@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>działkometr — ceny transakcyjne działek</title>
+<meta name="theme-color" content="#204f42">
+<meta name="description" content="Sprawdź rzeczywiste ceny sprzedaży działek. Transakcje RCN, granice działek i informacje o źródłach w jednym miejscu.">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="stylesheet" href="/static/vendor/leaflet.css"><link rel="stylesheet" href="/static/style.css?v=counties3"><link rel="stylesheet" href="/static/interface.css?v=counties3"><script defer src="/static/vendor/leaflet.js"></script><script defer src="/static/app.js?v=counties3"></script></head>
+<body data-mode="list" data-sheet="peek">
+<aside id="side" aria-label="Lista transakcji i karta działki">
+ <div class="brand">
+  <a href="/" class="logo" aria-label="działkometr — strona główna"><svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 11l19-5 6 21-19 7z"/><path d="M8 11l13 9 12 7M21 20l-7 14"/><circle cx="8" cy="11" r="2"/><circle cx="27" cy="6" r="2"/><circle cx="33" cy="27" r="2"/><circle cx="14" cy="34" r="2"/></svg>działkometr</a>
+  <p class="brand-description">Rzeczywiste ceny sprzedaży działek.</p>
+  <button type="button" class="region" id="open-counties" aria-haspopup="dialog" aria-controls="counties-panel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6 7-12a7 7 0 10-14 0c0 6 7 12 7 12z"/><circle cx="12" cy="9" r="2"/></svg><span id="region-label">Powiat gorzowski</span><span class="region-source" id="region-source">Dane RCN</span></button>
+  <span class="brand-sub">Rzeczywiste ceny transakcyjne działek</span>
+ </div>
+ <div id="peek"><button type="button" id="peek-list" class="icon-btn" aria-label="Pokaż listę"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><strong><span class="peek-results"><span id="peek-total">—</span> transakcji</span><span class="peek-card-label">Wróć do karty działki</span></strong><button type="button" id="peek-up" class="icon-btn" aria-label="Rozwiń listę"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button></div>
+ <section id="list-view">
+  <div class="list-intro"><h1>Transakcje w okolicy</h1><p>Przesuń mapę, aby poznać ceny w wybranym miejscu.</p></div>
+  <nav class="list-shortcuts" aria-label="Informacje o obszarze"><button type="button" data-section="saved-section"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg>Moje działki<span id="saved-count">0</span></button><button type="button" data-section="stats-section"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Statystyki</button></nav>
+  <div class="list-head"><div><strong id="total">—</strong> <span>transakcji w widoku</span></div>
+   <select id="sort" aria-label="Sortuj"><option value="date:desc">Najnowsze</option><option value="date:asc">Najstarsze</option><option value="price:asc">Cena rosnąco</option><option value="price:desc">Cena malejąco</option><option value="area:desc">Największe</option></select></div>
+  <div id="transactions" class="tx-list"></div>
+  <div class="pager"><button type="button" id="prev" class="ghost">← Poprzednie</button><span id="page"></span><button type="button" id="next" class="ghost">Następne →</button></div>
+  <details class="box" id="stats-section" open><summary>Statystyki widoku</summary><p id="stats-note" class="small"></p><div id="stats"></div></details>
+  <details class="box" id="saved-section" open><summary>Moje działki</summary><div id="favorites"></div></details>
+  <details class="box"><summary>Stan źródeł i jakość danych</summary><div id="sources"></div><a href="/api/quality">Raport jakości JSON</a></details>
+  <p class="small foot" id="data-foot">Źródła: RCN, GUGiK (ULDK, punkty adresowe) · <a href="/docs">API</a> · Ceny nominalne, bez wyceny.</p>
+ </section>
+ <section id="details" aria-live="polite" aria-label="Karta działki"><div id="card"></div></section>
+</aside>
+<main id="map-wrap" aria-label="Mapa">
+ <div id="map" aria-label="Mapa transakcji działek"></div>
+ <form id="search-form" class="searchbar" autocomplete="off">
+  <a href="/" class="logo mini" aria-label="działkometr — strona główna"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 11l19-5 6 21-19 7zM8 11l13 9 12 7M21 20l-7 14"/></svg></a>
+  <label class="seg where"><span class="seg-k"><span class="desktop-label">Znajdź działkę</span><span class="mobile-label">działkometr</span></span><input id="q" placeholder="Miejscowość, adres lub nr działki" aria-label="Gdzie? Miejscowość, adres lub numer działki"></label>
+  <button type="button" class="seg wide" data-row="price" aria-haspopup="dialog"><span class="seg-k">Cena transakcji</span><span class="seg-v" id="sum-price">Dowolna cena</span></button>
+  <button type="button" class="seg wide" data-row="area" aria-haspopup="dialog"><span class="seg-k">Powierzchnia</span><span class="seg-v" id="sum-area">Dowolna wielkość</span></button>
+  <button type="button" id="open-filters" class="filters-btn" aria-label="Filtry" aria-haspopup="dialog" aria-controls="filters-panel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="lbl">Filtry</span><i id="filter-count" hidden></i></button>
+  <button id="search-go" class="go" aria-label="Szukaj"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></button>
+ </form>
+ <button type="button" id="toggle-list" class="float-btn tl"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Widok listy</span></button>
+ <div class="float tr">
+  <button type="button" id="select-parcel" class="float-btn" aria-label="Wskaż działkę"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-12a7 7 0 10-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg><span>Wskaż działkę</span></button>
+  <button type="button" id="draw-area" class="float-btn" aria-label="Zaznacz obszar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 6-3 10H7L4 9z"/></svg><span>Zaznacz obszar</span></button>
+  <button type="button" id="finish-area" class="float-btn primary" hidden>Zakończ obszar</button>
+  <button type="button" id="clear-area" class="float-btn" hidden>Usuń obszar</button>
+ </div>
+ <div class="float bl">
+  <button type="button" id="layers-btn" class="float-btn square" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg><span>Warstwy</span></button>
+  <div id="layers" class="popover" hidden>
+   <strong>Warstwy</strong>
+   <label><input type="checkbox" id="layer-numbers" checked> Numery działek (od przybliżenia 16)</label>
+   <label><input type="checkbox" id="layer-favorites" checked> Moje działki ★</label>
+   <label><input type="checkbox" id="layer-outlines" checked> Obrysy działek przy przybliżeniu</label>
+  </div>
+ </div>
+ <div id="legend" class="float br">
+  <div class="legend-title"><span><span id="legend-cat">Niezabudowane</span> · zł/ar</span><b id="legend-median">—</b></div>
+  <div class="gradient"></div>
+  <div class="legend-scale"><span id="legend-min">—</span><span id="legend-max">—</span></div>
+  <p class="small">Jedna kategoria, jedna działka w akcie · szare: brak ceny/ar albo inna kategoria</p>
+  <div class="legend-cats">
+   <label><input type="checkbox" name="cat" value="unbuilt" checked><i class="dot unbuilt"></i>Niezabudowane</label>
+   <label><input type="checkbox" name="cat" value="built"><i class="dot built"></i>Zabudowane</label>
+   <label><input type="checkbox" name="cat" value="unknown"><i class="dot unknown"></i>Lokale i inne</label>
+  </div>
+ </div>
+ <div id="message" role="status"></div>
+</main>
+<div id="scrim" hidden></div>
+<section id="filters-panel" class="drawer" role="dialog" aria-modal="true" aria-labelledby="filters-title" hidden>
+ <div class="drawer-head"><div><h2 id="filters-title">Dopasuj wyniki</h2><p>Transakcje w aktualnym widoku mapy</p></div><button type="button" id="close-filters" class="icon-btn" aria-label="Zamknij filtry"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <p id="filter-error" class="filter-error" role="alert" hidden></p>
+ <form id="filters">
+  <fieldset class="frow" data-row="counties"><legend>Powiaty</legend><button type="button" id="filters-counties" class="ghost">Powiat gorzowski</button><p class="field-help">Wybierz, które powiaty są w tej lokalnej kopii.</p></fieldset>
+  <fieldset class="frow" data-row="where"><legend>Lokalizacja</legend><input name="place" aria-label="Lokalizacja" aria-describedby="place-help" placeholder="Np. Kłodawa"><p class="field-help" id="place-help">Miejscowość, ulica lub obręb</p></fieldset>
+  <fieldset class="frow" data-row="what"><legend>Rodzaj nieruchomości</legend>
+   <div class="chips"><label><input type="radio" name="category" value="" checked><span>Wszystkie</span></label><label><input type="radio" name="category" value="unbuilt"><span>Niezabudowane</span></label><label><input type="radio" name="category" value="built"><span>Zabudowane</span></label><label><input type="radio" name="category" value="unknown"><span>Lokale i inne</span></label></div></fieldset>
+  <fieldset class="frow" data-row="price"><legend>Cena całego aktu <span>zł</span></legend><div class="pair"><input name="price_min" type="number" min="0" placeholder="Od" aria-label="Cena od"><input name="price_max" type="number" min="0" placeholder="Do" aria-label="Cena do"></div></fieldset>
+  <fieldset class="frow" data-row="unit"><legend>Cena za ar <span>zł/ar</span></legend><div class="pair"><input name="unit_min" type="number" min="0" step="1" placeholder="Od" aria-label="Cena za ar od"><input name="unit_max" type="number" min="0" step="1" placeholder="Do" aria-label="Cena za ar do"></div><p class="field-help">1 ar = 100 m²</p></fieldset>
+  <fieldset class="frow" data-row="area"><legend>Powierzchnia działki <span>ary</span></legend><div class="pair"><input name="area_min" type="number" min="0" step="0.01" placeholder="Od" aria-label="Powierzchnia od w arach"><input name="area_max" type="number" min="0" step="0.01" placeholder="Do" aria-label="Powierzchnia do w arach"></div></fieldset>
+  <fieldset class="frow" data-row="when"><legend>Data sprzedaży</legend><div class="pair"><label>Od<input name="date_from" type="date" aria-label="Data od"></label><label>Do<input name="date_to" type="date" aria-label="Data do"></label></div></fieldset>
+  <fieldset class="frow" data-row="use"><legend>Sposób użytkowania</legend><select name="land_use" aria-label="Sposób użytkowania"><option value="">Wszystkie</option><option value="gruntyRolne">Grunty rolne</option><option value="gruntyZabudowaneIZurbanizowane">Grunty zabudowane i zurbanizowane</option><option value="gruntyLesne">Grunty leśne</option><option value="terenyKomunikacyjne">Tereny komunikacyjne</option><option value="inne">Inne</option></select></fieldset>
+  <p class="small">MPZP zapisane w RCN dotyczy dnia sprzedaży, nie obecnego planu.</p>
+ </form>
+ <div class="drawer-foot"><button type="button" id="clear-filters" class="link">Wyczyść</button><button id="apply-filters" form="filters" class="primary big">Pokaż wyniki</button></div>
+</section>
+<section id="counties-panel" class="drawer" role="dialog" aria-modal="true" aria-labelledby="counties-title" hidden>
+ <div class="drawer-head"><div><h2 id="counties-title">Powiaty w tej kopii</h2><p>Zaznacz, które dane mają być używane lokalnie. Na górze są powiaty startowe.</p></div><button type="button" id="close-counties" class="icon-btn" aria-label="Zamknij listę powiatów"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <p id="counties-error" class="filter-error" role="alert" hidden></p>
+ <div id="counties-body">
+  <label class="county-search"><span class="seg-k">Szukaj powiatu</span><input id="county-q" type="search" placeholder="Nazwa, TERYT albo miejscowość" aria-label="Szukaj powiatu"></label>
+  <p class="small" id="counties-status"></p>
+  <div id="county-list" class="county-list"></div>
+ </div>
+ <div class="drawer-foot"><button type="button" id="counties-only" class="link">Tylko pokaż</button><button type="button" id="counties-apply" class="primary big">Użyj i pobierz brakujące</button></div>
+</section>
+</body></html>
